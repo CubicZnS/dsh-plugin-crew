@@ -30,6 +30,19 @@ DSH 原生 Agent Teams 已经提供了 roster / 持久信箱 / 任务板 / 冷�
 | `crew_report` | **worker / reviewer** | 唯一的完成信号，写进账本 |
 | `crew_inbox` | 人 | 列出待拍板项，或给结论 |
 
+## 前置条件（否则只会降级，不会崩）
+
+1. **宿主必须挂上 Agent Teams 服务**。它不在默认 web profile 里，需要额外加：
+   ```bash
+   dsh plugin --profile web add @deepseek-ai/dsh-experimental-agent-team-profile
+   ```
+   没挂的时候 `ctx.agentTeams` 不存在，插件仍会加载并注册工具，但调度器不启动（`lib/team.js` 特征检测后降级）。
+
+2. **班组要绑定一个明确的家**。当前 `discoverLead` 取第一个 role=lead 的 root agent；
+   同时开多个会话时可能认错。P3 会加「按 workspace / session 指定」的配置。
+
+3. **不要把班组放在你正在干活的会话里**——teammate 会在同一个 workspace 上动手。建议专用工作区。
+
 ## 安装（干活那台 Mac）
 
 ```bash
