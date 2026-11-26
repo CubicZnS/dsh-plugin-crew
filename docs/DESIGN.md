@@ -120,7 +120,21 @@ append-only JSONL，每行一条记录：
 
 建会话时通过 `ctx.permissionPresets.set(session, preset)` 落地（SPIKE S3 已验证该 API 存在）。
 
-## 7. 明确不做（v1）
+## 7. P1 实现注记（2026-11-26）
+
+- **重试预算按「真实失败」计**：`task.attempts` 只记录被 claim 过几次（可观测），
+  `task.failures` 才消耗 `maxAttempts`。宿主崩溃（`interrupted`）不算任务失败，
+  否则一次断电就能把整板任务打进收件箱。
+- **单飞 guard**：`tick()` 并发调用会被折叠成一次，配合「派遣前重新折叠状态」，
+  同一任务不会被两次派活。
+- **id 计数器**：每次 tick 先从折叠状态播种 `run/lease/inbox` 计数器，再本地自增，
+  保证同一 tick 内派发多个任务不会 id 撞车。
+- **启动对账**：任何 `run.started` 没有对应的 `run.finished`，一律视为被杀的孤儿，
+  在派活之前收尾为 `interrupted` 并释放租约。
+- **不变量可自证**：`lib/audit.js` 只读账本就能验证「同一任务不存在并发两个 run」，
+  daemon 的 summary 与 kill 测试都跑它。
+
+## 8. 明确不做（v1）
 
 多机共享任务板、git worktree 隔离、外部事件源、定时例行、嵌套团队、实时审批弹窗。
 

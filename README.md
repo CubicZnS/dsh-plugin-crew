@@ -3,7 +3,8 @@
 在 DSH 里跑**无人值守班组**：一个常驻 Lead + 临时 worker + 盲审 reviewer，
 任务板驱动，崩溃能自愈，需要人时进收件箱。
 
-> 状态：**P0（地基）**。仓库骨架 + 数据模型 + 技术验证已完成，运行时尚未接入。
+> 状态：**P1（心脏）**。账本、巡检、租约、崩溃自愈已实现并用假 agent 验证；
+> 真实 Agent Teams 接入在 P2。
 > 设计见 [docs/DESIGN.md](docs/DESIGN.md)，验证结论见 [docs/SPIKE.md](docs/SPIKE.md)。
 
 ## 它解决什么
@@ -32,7 +33,10 @@ dsh plugin --profile web add .
 ## 开发
 
 ```bash
-npm test          # 纯逻辑单测，不需要 DSH
+npm test                      # 13 条单测，不需要 DSH
+node bin/crew-daemon.mjs --tasks 3 --work 500 --ticks 20   # 空跑一个模拟班组
+node bin/crew-report.mjs --ledger ./.crew/ledger.jsonl --out ./.crew/report.html
+./scripts/kill-test.sh        # 崩溃自愈验收：kill -9 后重启，任务全完成且不变量成立
 ```
 
 跨仓库的集成验证见 [spike/](spike/)：那套 spec 要放在 deepseek-harness 仓库里跑。
