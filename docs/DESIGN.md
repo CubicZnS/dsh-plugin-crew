@@ -157,7 +157,23 @@ append-only JSONL，每行一条记录：
 | 四类任务真机跑通 | 同上：得在宿主里 spawn 真 teammate | P3 安装后第一件事 |
 | 跨会话 memory | 先靠 session 连续性，不做额外记忆层 | 观察后再定 |
 
-## 9. 明确不做（v1）
+## 9. P3 部署与运行注记（2026-11-26）
+
+- **部署 = 一条命令**：`install.sh` → 找 App/CLI → 补 Agent Teams bundle → 装自己 →
+  `--dump-config` 验证组合 → 写 `config.json`/`deploy.json`。幂等，可重复跑。
+- **版本必须对齐**：Team bundle 的依赖是**精确版本**（`0.2.2-rc.1`），dsh 运行时不匹配时
+  CLI 要求 `allow-version --accept-risk`。installer 会按 dsh 的主次版本挑最接近的已发布版本，
+  仍不匹配就报 `E_RISK_REQUIRED` 并把命令原文交给人，**不擅自接受风险**。
+- **服务必须延迟解析**：apply 时其他 bundle 的 fiber 还没 ACTIVE，`ctx.get('agents')` 会返回
+  undefined。正确姿势是 `ctx.inject(['agents','agentTeams'], scope => ...)` 等它们就绪再起调度器。
+- **不能直接读 `ctx.agentTeams`**：未在 inject 里声明会抛 `cannot get property ... without inject`，
+  而声明了又会让插件在缺 Team 的宿主上完全不加载。所以统一走 `ctx.get()`（只读、不要求 inject）。
+- **家要显式绑定**：`discoverLead` 优先取 cwd 落在 `homeWorkspace` 里的 root，否则取最新的一个。
+- **谷时与预算在派活前过滤**：被推迟的任务不算 stalled（否则会被误判死锁）。
+- **真机验证**：在从 web 模板克隆出的独立 profile（`crewtest`）上装齐 Team bundle + 本插件，
+  用真实宿主启动，日志出现 `[crew] scheduler started`。
+
+## 10. 明确不做（v1）
 
 多机共享任务板、git worktree 隔离、外部事件源、定时例行、嵌套团队、实时审批弹窗。
 

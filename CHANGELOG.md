@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 0.3.0 — P3 可部署（2026-11-26）
+
+- `install.mjs` / `install.sh`：幂等部署，探测 App/CLI/profile，补 Agent Teams bundle，装插件，
+  `--dump-config` 验证，写 config/deploy 记录；支持 `--json` `--dry-run` `--restart` `--accept-risk`
+- 版本对齐：按 dsh 主次版本挑选已发布的 Team bundle；不匹配时报 `E_RISK_REQUIRED` 并交出命令原文
+- `bin/crew-doctor.mjs`：11 项静态检查 + 修复建议
+- `AGENTS.md`：给 coding agent 的部署手册（含失败码分支、要不要重启的判断）
+- 谷时调度：可延迟任务排在便宜时段，急活/临近 deadline 不受限
+- 预算闸：按当日 token × 单价计算，超限停派活并开收件箱
+- 服务解析改为 `ctx.get()` + `ctx.inject()` 延迟启动，修复真机启动时 `without inject` 崩溃
+- 单测 33 条全绿；在独立 profile 上用真实宿主验证 scheduler 启动
+
 ## 0.2.0 — P2 班组（2026-11-26）
 
 - `lib/team.js`：Agent Teams 薄适配层（发现 Lead、spawn/复用 teammate、投递、按 kind 设权限档），特征检测可降级

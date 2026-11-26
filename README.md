@@ -3,8 +3,17 @@
 在 DSH 里跑**无人值守班组**：一个常驻 Lead + 临时 worker + 盲审 reviewer，
 任务板驱动，崩溃能自愈，需要人时进收件箱。
 
-> 状态：**P2（班组）**。调度器 + Agent Teams 接入 + 盲审 + 收件箱已实现，
-> 27 条单测覆盖；真机跑通与侧边栏面板在 P3 随安装一起验证。
+> 状态：**P3（可部署）**。一条命令装好，33 条单测 + 真机宿主启动验证通过。
+
+## 三步装好
+
+```bash
+git clone https://github.com/CubicZnS/dsh-plugin-crew.git
+cd dsh-plugin-crew && ./install.sh
+# 重启 DSH，然后在对话里说：crew_status
+```
+
+给 agent 装可以用 `./install.sh --json`，判断规则写在 [AGENTS.md](AGENTS.md)。
 > 设计见 [docs/DESIGN.md](docs/DESIGN.md)，验证结论见 [docs/SPIKE.md](docs/SPIKE.md)。
 
 ## 它解决什么
