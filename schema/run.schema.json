@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "crew/run.schema.json",
+  "title": "CrewRun",
+  "type": "object",
+  "required": [
+    "id",
+    "taskId",
+    "status",
+    "startedAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^run-[0-9]+$"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^task-[0-9]+$"
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "agentName": {
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "lead",
+        "worker",
+        "reviewer"
+      ]
+    },
+    "status": {
+      "enum": [
+        "running",
+        "succeeded",
+        "failed",
+        "timed_out",
+        "cancelled"
+      ]
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cost": {
+      "type": "number",
+      "minimum": 0
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

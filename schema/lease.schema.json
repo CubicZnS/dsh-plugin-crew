@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "crew/lease.schema.json",
+  "title": "CrewLease",
+  "type": "object",
+  "required": [
+    "id",
+    "taskId",
+    "owner",
+    "expiresAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^lease-[0-9]+$"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^task-[0-9]+$"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "grantedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expiresAt": {
+      "type": "integer",
+      "description": "epoch ms"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "crew/inbox.schema.json",
+  "title": "CrewInboxItem",
+  "type": "object",
+  "required": [
+    "id",
+    "taskId",
+    "question",
+    "status",
+    "dueAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^inbox-[0-9]+$"
+    },
+    "taskId": {
+      "type": "string"
+    },
+    "question": {
+      "type": "string"
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "enum": [
+        "open",
+        "approved",
+        "rejected",
+        "expired",
+        "answered"
+      ]
+    },
+    "timeoutAction": {
+      "enum": [
+        "reject",
+        "approve",
+        "skip"
+      ],
+      "default": "reject"
+    },
+    "dueAt": {
+      "type": "integer",
+      "description": "epoch ms"
+    },
+    "resolvedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "answer": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
