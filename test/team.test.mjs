@@ -154,3 +154,19 @@ test('an unanswered approval expires into a blocked task', async () => {
   assert.equal(state.tasks.get('task-1').reason, 'approval-timeout')
   scheduler.stop()
 })
+test('a malformed team service degrades instead of throwing', async () => {
+  const { teamAvailable, discoverLead } = await import('../lib/team.js')
+  const partial = { get: (name) => (name === 'agents' ? { list: () => [], get: () => undefined } : name === 'agentTeams' ? { sendMessage() {} } : undefined) }
+  assert.equal(teamAvailable(partial), false)
+  assert.equal(discoverLead(partial), undefined)
+})
+
+test('a throwing registry never escapes discovery', async () => {
+  const { discoverLead } = await import('../lib/team.js')
+  const hostile = {
+    get: (name) => (name === 'agents'
+      ? { list: () => { throw new Error('boom') }, get: () => undefined }
+      : { tryMembership: () => ({ role: 'lead' }), sendMessage() {} }),
+  }
+  assert.equal(discoverLead(hostile), undefined)
+})

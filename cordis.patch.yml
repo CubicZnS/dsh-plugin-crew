@@ -1,4 +1,8 @@
-# dsh-plugin-crew bundle patch: insert this plugin into a profile's layer stack.
+# dsh-plugin-crew bundle patch.
+#
+# Insert-only on purpose: this layer never provides Agent Teams services itself.
+# A wrong service shape here once crashed the host (teams.tryMembership missing),
+# so team wiring stays an explicit, separate concern.
 - insert:
     - id: crew
       name: dsh-plugin-crew
