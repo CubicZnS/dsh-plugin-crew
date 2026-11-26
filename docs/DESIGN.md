@@ -170,6 +170,9 @@ append-only JSONL，每行一条记录：
   而声明了又会让插件在缺 Team 的宿主上完全不加载。所以统一走 `ctx.get()`（只读、不要求 inject）。
 - **家要显式绑定**：`discoverLead` 优先取 cwd 落在 `homeWorkspace` 里的 root，否则取最新的一个。
 - **谷时与预算在派活前过滤**：被推迟的任务不算 stalled（否则会被误判死锁）。
+- **CLI 会归一化 bundles**：每次 `dsh plugin …` 或 `--dump-config` 都会重写
+  `dsh.profile.bundles`，可能把未完全落地的 bundle 条目丢掉。所以 installer **不再用
+  `--dump-config` 验证**（它本身就是写操作），改为读文件校验 + 必要时补写条目。
 - **真机验证**：在从 web 模板克隆出的独立 profile（`crewtest`）上装齐 Team bundle + 本插件，
   用真实宿主启动，日志出现 `[crew] scheduler started`。
 

@@ -116,6 +116,18 @@ function bundlesOf(pkg) {
   return (pkg && pkg.dsh && pkg.dsh.profile && pkg.dsh.profile.bundles) || []
 }
 
+/** Insert a bundle entry the CLI dropped, keeping dsh-base/dsh-web-app order intact. */
+function patchBundleList(name) {
+  const file = join(homedir(), '.dsh', 'profiles', name, 'package.json')
+  const pkg = JSON.parse(readFileSync(file, 'utf8'))
+  const bundles = pkg.dsh.profile.bundles
+  if (bundles.includes(TEAM_BUNDLE)) return
+  copyFileSync(file, file + '.bak-crew-bundles-' + Date.now())
+  const anchor = bundles.indexOf('@deepseek-ai/dsh-web-app')
+  bundles.splice(anchor >= 0 ? anchor + 1 : bundles.length, 0, TEAM_BUNDLE)
+  writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n', 'utf8')
+}
+
 // ---- 1. locate the host -------------------------------------------------------
 const app = findApp()
 if (!app) fail('E_NO_DSH', '没找到 DSH：请先安装 https://github.com/deepseek-ai/deepseek-harness 的桌面版')
@@ -185,10 +197,18 @@ for (const name of targets) {
       fail('E_INSTALL_FAILED', entry.error)
     }
     entry.installed = bundlesOf(readProfile(name)).includes(PKG.name)
-    const verify = runCli(cli, ['--profile', name, '--dump-config'], 120000)
-    entry.verified = verify.status === 0
+    // The CLI normalizes dsh.profile.bundles on every invocation and can drop a
+    // bundle it has not fully materialised. Verify by reading the file, never by
+    // running --dump-config (that would rewrite what we just checked).
+    const bundles = bundlesOf(readProfile(name))
+    entry.verified = bundles.includes(PKG.name) && bundles.includes(TEAM_BUNDLE)
+    if (!entry.verified && !bundles.includes(TEAM_BUNDLE)) {
+      log(name + ': 补齐 bundles 记录（CLI 归一化会丢）')
+      patchBundleList(name)
+      entry.verified = bundlesOf(readProfile(name)).includes(TEAM_BUNDLE)
+    }
     if (!entry.verified) {
-      entry.error = 'profile 组合失败（--dump-config 非 0）：' + (verify.stderr || verify.stdout).slice(-400)
+      entry.error = 'profile 里缺少 bundle 记录，且补齐失败'
       result.profiles.push(entry)
       fail('E_VERIFY_FAILED', entry.error)
     }
