@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "crew/report.schema.json",
+  "title": "CrewRunReport",
+  "description": "worker/reviewer 通过 crew_report 写回的唯一完成信号",
+  "type": "object",
+  "required": [
+    "run_id",
+    "status"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-[0-9]+(-r)?$"
+    },
+    "status": {
+      "enum": [
+        "succeeded",
+        "failed",
+        "blocked"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 50
+    },
+    "needs": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "tokens": {
+      "type": "number",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

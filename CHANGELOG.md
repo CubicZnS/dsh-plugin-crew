@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.2.0 — P2 班组（2026-11-26）
+
+- `lib/team.js`：Agent Teams 薄适配层（发现 Lead、spawn/复用 teammate、投递、按 kind 设权限档），特征检测可降级
+- `lib/team-executor.js`：真实 Executor —— 派 handoff → 等 `crew_report` → 盲审 → 判定；超时/取消可收口
+- `lib/kinds.js`：任务类型注册表（权限档、默认写域、rubric、交付形态、是否评审）
+- 工具：`crew_report`（worker 唯一完成信号）、`crew_inbox`（人工拍板）
+- 收件箱超时：tick 扫描过期项，按 timeoutAction（默认 reject）落 blocked(approval-timeout)
+- 插件在 `enabled: true` 且检测到 live Team 时自启调度循环，随 ctx 卸载停止
+- 单测 27 条全绿
+
 ## 0.1.0 — P1 心脏（2026-11-26）
 
 - `lib/scheduler.js`：单飞 tick、启动对账、收尸、派活、审计、判死、空闲退避

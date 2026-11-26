@@ -76,6 +76,15 @@
       "type": "integer",
       "minimum": 0
     },
+    "failures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "真实失败次数，消耗重试预算；崩溃中断不计"
+    },
+    "reason": {
+      "type": "string",
+      "description": "blocked 的原因码：retry-exhausted / approval-timeout / rejected-by-human"
+    },
     "blockedReason": {
       "type": "string"
     },

@@ -134,7 +134,30 @@ append-only JSONL，每行一条记录：
 - **不变量可自证**：`lib/audit.js` 只读账本就能验证「同一任务不存在并发两个 run」，
   daemon 的 summary 与 kill 测试都跑它。
 
-## 8. 明确不做（v1）
+## 8. P2 实现注记（2026-11-26）
+
+- **控制通道 = 工具调用**：worker 结束必须调 `crew_report(run_id, status, summary, artifacts, needs)`。
+  调度器只认账本里的 `run.reported`，**不解析自然语言**——这是和 paperclip 最大的差别。
+- **盲审在 Executor 内部**：`TeamExecutor` 先派工、等回报；需要评审的类型再派一次 reviewer，
+  拿 `review.verdict`。调度器始终不知道 agent、模型、rubric 的存在。
+- **驳回复用失败预算**：评审驳回算一次 failed run，第二次驳回即 `blocked` + 收件箱
+  （与 `maxAttempts=2` 一致，不另设计数器）。
+- **权限档挂在 kind 上**：派活前调 `permissionPresets.set(worker.session, kind.permissionPreset)`；
+  worker 不活跃时静默跳过，下次派活重新应用。
+- **收件箱超时**：每次 tick 先扫过期项，按 `timeoutAction`（默认 reject）落下
+  `blocked(approval-timeout)`，任务不会因为没人回话而永远挂着。
+- **适配层可降级**：`lib/team.js` 是唯一 import experimental 服务的文件，全部特征检测；
+  没有 Teams 的宿主照样加载其余四个工具。
+
+### P2 明确没做
+
+| 项 | 原因 | 何时 |
+| --- | --- | --- |
+| 侧边栏面板 | 需要装进正在跑的宿主才能验证，不能替你重启 GUI | P3 与安装一起做 |
+| 四类任务真机跑通 | 同上：得在宿主里 spawn 真 teammate | P3 安装后第一件事 |
+| 跨会话 memory | 先靠 session 连续性，不做额外记忆层 | 观察后再定 |
+
+## 9. 明确不做（v1）
 
 多机共享任务板、git worktree 隔离、外部事件源、定时例行、嵌套团队、实时审批弹窗。
 
