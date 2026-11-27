@@ -4,6 +4,20 @@
 **主版本**改协议或数据格式，**次版本**加功能，**修订号**只修 bug。
 每次发版必须同时更新：`package.json` 的 version、本文件、`docs/DESIGN.md` 的对应注记，并打 git tag。
 
+## [0.8.2] — 2026-11-27
+
+### 修复
+- 面板 rpc 带诊断：注册成功 / 缺 connection / 抛异常都会记录，`crew_status` 的
+  「面板通道」一行显示 `ok / pending / unavailable / failed`。
+- 恢复动态 `ctx.inject(['connection'])`：静态 inject 会让插件在没有客户端桥的宿主上完全不加载。
+
+## [0.8.1] — 2026-11-27
+
+### 修复
+- **apply 崩溃**：`ctx.crewControl = ...` 在 cordis 里非法（`cannot set property ... without provide`），
+  异常中断 apply，导致面板 rpc 从未注册（表现为 `/api/crewPanel 404`），插件 fiber 也一并失败。
+  改为闭包变量持有开关控制器。
+
 ## [0.8.0] — 2026-11-27
 
 ### 变更（不兼容）
