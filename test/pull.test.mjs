@@ -11,7 +11,7 @@ async function fixture(config = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'crew-pull-'))
   const tools = new Map()
   const ctx = { tools: { register(tool) { tools.set(tool.name, tool) } } }
-  apply(ctx, { dataDir: dir, ...config })
+  apply(ctx, { dataDir: dir, offPeak: { enabled: false }, ...config })
   return { tools, ledger: new Ledger(join(dir, 'ledger.jsonl')) }
 }
 

@@ -78,5 +78,6 @@ test('crew_status reports counts and the next planned tick', async () => {
   const status = await tools.get('crew_status').execute({})
   assert.equal(status.ok, true)
   assert.equal(status.tasks.todo, 1)
-  assert.deepEqual(status.nextActions, ['dispatch'])
+  assert.deepEqual(status.nextActions, [])
+  assert.deepEqual(status.pending, { work: 1, review: 0 })
 })

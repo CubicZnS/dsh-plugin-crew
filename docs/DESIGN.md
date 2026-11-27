@@ -1,209 +1,108 @@
 # DESIGN — dsh-plugin-crew
 
-> 版本：P0（地基）。本文件是唯一的架构权威，改动先改这里。
-
-## 0. 术语
-
-- **P = Phase（阶段）**。本仓库与本文档**只用这一套**：P0 地基 / P1 心脏 / P2 班组 / P3 运维 / P4 按需打磨。
-- 早期口头讨论里用过 **M（Milestone）**，已废弃。对应关系：M0 → P1 的实跑闸门，M1 → P1，M2 → P2，M3 → P4。
-
-| 阶段 | 范围 | 状态 |
-| --- | --- | --- |
-| P0 | 仓库骨架、决策记录、数据模型、三个技术验证 | ✅ 完成 |
-| P1 | 账本、巡检 tick、租约、并发一致性（全用假 agent） | 进行中 |
-| P2 | 接 Agent Teams、角色编制、盲审、人工收件箱 | 未开始 |
-| P3 | 谷时调度、预算闸、面板、守护、分发 | 未开始 |
-| P4 | worktree 隔离、多机、外部事件源（不在承诺范围内） | 未开始 |
+> 版本：v0.5.0。本文是唯一架构权威；改动先改这里。
 
 ## 1. 一句话
 
-把 DSH 原生 Agent Teams 包成**能跨天无人值守的班组**：代码管队列与生命周期，
-LLM 只管拆解、仲裁、验收。
+插件只做**账本与规矩**。派活不归它管——Lead 会话用 `crew_pull` 领活，用宿主自带的
+`subagent` 派出去，worker 用 `crew_report` 回报。插件保证这件事**不会烂尾**。
 
-## 2. 决策记录（2026-11-26）
+## 2. 为什么不是「插件自己派活」
 
-| # | 问题 | 决定 |
-| --- | --- | --- |
-| 1 | 任务类型 | 代码 / 文献 / 内容 / 数据监控并存 → **任务类型是一等公民** |
-| 2 | 宿主 | 一台 Mac 常驻干活，另一台 + 手机远程查看与下发 |
-| 3 | 人的介入 | 偶尔在线，**异步批准** |
-| 4 | 团队构成 | **混合**：Lead + reviewer 常驻，worker 临时 |
-| 5 | 谁当工头 | **混合双脑**：代码管队列，LLM 管拆解/仲裁/验收 |
-| 6 | 并发上限 | 4–5 |
-| 7 | 验收 | **独立 reviewer 盲审**（只看产物 + rubric） |
-| 8 | 权限 | 按任务类型分三档：只读 / 可写 / 可执行 |
-| 9 | 写冲突 | **单 writer 租约 + 目录分区** |
-| 10 | 预算 | 每日金额上限，超了停 |
-| 11 | 批准超时 | **默认拒绝**，任务转 blocked |
-| 12 | 任务来源 | 手动 + 手机远程（v1 不接外部事件） |
-| 13 | 界面 | DSH 侧边栏面板 + 手机 Remote |
-| 14 | 作息 | 有活就干、没活就睡；可延迟任务排谷时 |
-| 15 | 分发 | git 仓库，另一台 pull 后安装 |
+在 dsh `0.2.2-rc.5` 上实测：
+
+| 能力 | 实况 |
+| --- | --- |
+| `ctx.agents` | 只有 `list` / `get`，**只读**，插件无法创建会话 |
+| `ctx.agentTeams` | 返回 `TeamService{}`，**一个方法都没有**（空壳） |
+| `subagent` / `subagent_fork` | 稳定可用，但只在**模型回合**里可调 |
+
+所以插件没有能力自己拉人干活。硬要试的代价，我们付过了：一次 `TypeError` 让宿主以 1 退出。
 
 ## 3. 对象模型
 
-见 `schema/`。四个持久对象：
-
-- **task**：要干的活。`todo → claimed → done`，旁路 `blocked` / `failed`。
-- **run**：一次执行尝试，绑一个 sessionId。
-- **lease**：某个 task 的写权租约，带 `owner` 与 `expiresAt`。
-- **inbox**：需要人拍板的事，带选项与超时策略。
-
-### 任务状态机
+见 `schema/`：**task / run / lease / inbox**。
 
 ```
-        ┌──────── claim ────────┐
-        │                       v
-  [todo] ────────────────> [claimed] ── complete ──> [done]
-     ^  \                      │  │
-     │   \                     │  └── fail ─────────> [failed]
-     │    \____ reopen _________│
-     │                          └── needs-human ────> [blocked]
-     └──────────── resolve ────────────────────────────┘
+                  crew_pull 认领
+  [todo] ──────────────────────> [claimed] ──report succeeded──┐
+     ^                               │                         │
+     │                               │ report failed           v
+     │                               └──────────────> 重试   [review] ──pass──> [done]
+     │                                                    │        │
+     └──────────────── report failed×N / 超时收尸 ─────────┘        └──fail──> [todo] 或 [blocked]
+                                                                              │
+                                                                        [blocked] → 收件箱 → 人
 ```
 
-规则：
-- `claimed` 必须有**有效租约**（`expiresAt > now`），否则下一个 tick 收尸。
-- `blocked` 必须有 `reason`（`blocked` / `needs-human`），且不可被调度。
-- 同一 `writeScope` 前缀内，同时最多一个 `claimed`。
+- `claimed` 必须有**有效租约**（`expiresAt > now`），否则 watchdog 收尸。
+- `review` 只由 `crew_pull` 派发（盲审作业），不会被 watchdog 判死锁。
+- `blocked` 必须带原因码：`retry-exhausted` / `worker-blocked` / `approval-timeout` / `rejected-by-human`。
 
-### 账本（唯一真源）
+## 4. pull 闭环
 
-append-only JSONL，每行一条记录：
+```
+你    → crew_task_add          写进账本（类型决定 rubric 与是否盲审）
+Lead  → crew_pull              领到 [{taskId, runId, prompt}]；先评审、后执行
+Lead  → subagent(prompt)       原样转发
+worker→ crew_report            写 run.reported，同时推进状态
+```
 
-| type | 作用 |
-| --- | --- |
-| `task.created` / `task.claimed` / `task.released` / `task.completed` / `task.failed` / `task.blocked` | 任务生命周期 |
-| `run.started` / `run.finished` | 执行尝试与成本 |
-| `lease.renewed` | 续约 |
-| `inbox.opened` / `inbox.resolved` | 人工决策 |
+`crew_pull` 负责的全部规则：依赖未完成不派、写域冲突不派、`failures >= maxAttempts` 不派、
+谷时之外的可延迟任务不派（`priority >= 100` 或临近 deadline 例外）、一次最多 5 个。
 
-折叠（`lib/fold.js`）得到当前状态；**账本永远不重写**，对账靠重放。
+`crew_report` 是**唯一**状态推进入口：它同时写 `run.reported` 并追加下一步事件
+（`task.completed` / `task.review.requested` / `task.released` / `task.blocked`）。
 
-## 4. 巡检 tick
+## 5. watchdog（后台循环，不派活）
 
-每 60s 一次（空闲退避到 5 分钟），六步：
+每 60s（空闲退避到 5 分钟）：
 
-1. **对账 reconcile**：账本 `claimed` ↔ 运行时 roster，找出「账本在跑但 agent 已没」的 run。
-2. **收尸 reap**：租约过期的 `claimed` → 释放 + 记 `run.finished(failed)`。
-3. **派活 dispatch**：`todo` 且依赖全 done、写域空闲、有并发槽、预算未超 → 唤起 worker。
-4. **审计 audit**：`claimed` 但超过 N 分钟无进展 → 催办 / 换人。
-5. **判死 deadlock**：无就绪任务、无有效租约、但仍有未完成任务 → 进收件箱。
-6. **休眠 idle**：无事可做就什么都不做（零成本）。
+1. **收件箱过期**：`dueAt` 已过的待批项按 `timeoutAction`（默认 reject）落地。
+2. **收尸**：租约过期的 `claimed` → 回 `todo`；若失败次数已耗尽 → `blocked` + 收件箱。
+3. **审计**：认领超过 `auditAfterMs` 仍无进展 → 记一条日志。
+4. **判死**：还有未完成任务，但没有可领的活、没有在评审、没有活着的认领，且连续
+   `deadlockTicks` 轮 → 开一条收件箱。评审中的任务不算卡死。
 
-## 5. 配置默认值
+它**从不**创建 agent、**从不**派活。故障只记日志，不抛给宿主。
+
+## 6. 配置（`~/.dsh/crew/config.json`）
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
-| `tickMs` | 60000 | 巡检间隔 |
-| `idleTickMs` | 300000 | 空闲退避 |
-| `leaseTtlMs` | 1800000 | 任务租约 30 分钟 |
-| `leaseRenewMs` | 300000 | 续约间隔 |
-| `maxConcurrent` | 4 | 并发槽 |
-| `maxAttempts` | 2 | 单任务重试上限 |
-| `deadlockTicks` | 3 | 连续几个 tick 才判死 |
-| `inboxTtlMs` | 14400000 | 收件箱超时 4 小时 |
-| `inboxTimeout` | `reject` | 超时默认拒绝 |
-| `offPeak` | `00:30–08:30` | 谷时窗口（可配置，不写死定价） |
-| `dailyBudget` | 由部署配置 | 每日金额上限 |
+| `enabled` | `false`（安装器写 `true`） | 是否启动 watchdog |
+| `tickMs` / `idleTickMs` | 60000 / 300000 | 巡检节奏 |
+| `leaseTtlMs` | 1800000 | 认领有效期 |
+| `maxAttempts` | 2 | 真实失败几次后升级给人 |
+| `deadlockTicks` | 3 | 连续几轮判死 |
+| `auditAfterMs` | 900000 | 多久算「没进展」 |
+| `inboxTtlMs` / `inboxTimeout` | 4h / `reject` | 收件箱超时策略 |
+| `offPeak` | `00:30–08:30` Asia/Shanghai | 谷时窗口（可关闭） |
+| `dailyBudget` / `costPerMToken` | 未设 | 只用于展示今日花费 |
 
-## 6. 权限分档
+**没有 `homeWorkspace`。** 班组在哪个工作区干活，由你开 Lead 会话的位置决定；
+写域（`src/` 之类）也是相对该会话的 cwd。这是刻意的：一套工具服务多个项目，不绑目录。
 
-权限挂在**任务类型**上，不挂在 agent 上：
+## 7. 任务类型
 
-| 类型 | permissionPreset | 允许 |
-| --- | --- | --- |
-| `code` | 可写 + 可执行 | 改仓库、跑测试 |
-| `research` | 只读 + 联网 | 下载与阅读 |
-| `content` | 可写指定目录 | 只动产物目录 |
-| `monitor` | 只读 | 抓取与告警 |
+| 类型 | 默认写域 | 需盲审 | rubric 关注点 |
+| --- | --- | --- | --- |
+| `code` | `src/` | 是 | 改动范围、测试、无残留调试代码 |
+| `research` | `docs/` | 是 | 来源可追溯、不把摘要当全文 |
+| `content` | `content/` | 是 | 受众语气、结构与首段 |
+| `monitor` | `data/` | 否 | 口径写清、阈值有依据 |
 
-建会话时通过 `ctx.permissionPresets.set(session, preset)` 落地（SPIKE S3 已验证该 API 存在）。
+「只读 / 可写 / 可执行」的权限档目前体现为**写域约束与 rubric**，没有接宿主的 permission preset——
+插件层拿不到建会话时机。要真正硬隔离，得在 Lead 会话层面用 preset。
 
-## 7. P1 实现注记（2026-11-26）
+## 8. 版本教训（别再踩）
 
-- **重试预算按「真实失败」计**：`task.attempts` 只记录被 claim 过几次（可观测），
-  `task.failures` 才消耗 `maxAttempts`。宿主崩溃（`interrupted`）不算任务失败，
-  否则一次断电就能把整板任务打进收件箱。
-- **单飞 guard**：`tick()` 并发调用会被折叠成一次，配合「派遣前重新折叠状态」，
-  同一任务不会被两次派活。
-- **id 计数器**：每次 tick 先从折叠状态播种 `run/lease/inbox` 计数器，再本地自增，
-  保证同一 tick 内派发多个任务不会 id 撞车。
-- **启动对账**：任何 `run.started` 没有对应的 `run.finished`，一律视为被杀的孤儿，
-  在派活之前收尾为 `interrupted` 并释放租约。
-- **不变量可自证**：`lib/audit.js` 只读账本就能验证「同一任务不存在并发两个 run」，
-  daemon 的 summary 与 kill 测试都跑它。
+1. **别在 experimental 包上下注。** Agent Teams 的包与 dsh 0.2.2-rc.5 对不上，服务是空壳。
+2. **插件提供的服务出问题会崩宿主。** 所以本插件的 `cordis.patch.yml` 只挂载自己。
+3. **`dsh` CLI 会重写 `dsh.profile.bundles`。** 校验要看文件，不要用 `--dump-config`（它本身是写操作）。
+4. **认错 profile 要付三次重启。** 装之前先确认宿主进程用的是 web 还是 desktop。
 
-## 8. P2 实现注记（2026-11-26）
+## 9. 不做
 
-- **控制通道 = 工具调用**：worker 结束必须调 `crew_report(run_id, status, summary, artifacts, needs)`。
-  调度器只认账本里的 `run.reported`，**不解析自然语言**——这是和 paperclip 最大的差别。
-- **盲审在 Executor 内部**：`TeamExecutor` 先派工、等回报；需要评审的类型再派一次 reviewer，
-  拿 `review.verdict`。调度器始终不知道 agent、模型、rubric 的存在。
-- **驳回复用失败预算**：评审驳回算一次 failed run，第二次驳回即 `blocked` + 收件箱
-  （与 `maxAttempts=2` 一致，不另设计数器）。
-- **权限档挂在 kind 上**：派活前调 `permissionPresets.set(worker.session, kind.permissionPreset)`；
-  worker 不活跃时静默跳过，下次派活重新应用。
-- **收件箱超时**：每次 tick 先扫过期项，按 `timeoutAction`（默认 reject）落下
-  `blocked(approval-timeout)`，任务不会因为没人回话而永远挂着。
-- **适配层可降级**：`lib/team.js` 是唯一 import experimental 服务的文件，全部特征检测；
-  没有 Teams 的宿主照样加载其余四个工具。
-
-### P2 明确没做
-
-| 项 | 原因 | 何时 |
-| --- | --- | --- |
-| 侧边栏面板 | 需要装进正在跑的宿主才能验证，不能替你重启 GUI | P3 与安装一起做 |
-| 四类任务真机跑通 | 同上：得在宿主里 spawn 真 teammate | P3 安装后第一件事 |
-| 跨会话 memory | 先靠 session 连续性，不做额外记忆层 | 观察后再定 |
-
-## 8.5 P4 架构转向：pull 模型（2026-11-27）
-
-现场结论：在本机 dsh `0.2.2-rc.5` 上，`ctx.get('agentTeams')` 返回的是
-`TeamService{}`——一个没有任何方法（`tryMembership`/`sendMessage`）的空壳；
-`ctx.agents` 只提供 `list`/`get`，插件无法自行创建会话。因此 push 模型（插件派活）
-在这条链路上走不通。
-
-改法：**插件只做账本与规则，派活交给 Lead 会话**。
-
-```
-用户 → crew_task_add → 账本
-Lead 会话 → crew_pull → 拿到 {taskId, runId, prompt}
-Lead → subagent(prompt) → worker 干活 → crew_report → 账本
-账本推进状态：done / review（盲审）/ todo（重试）/ blocked（进收件箱）
-```
-
-- `crew_pull` 是唯一领活入口：先发评审作业，再发执行作业；校验依赖、写域冲突、`maxAttempts`。
-- `crew_report` 是唯一推进入口：它同时写 `run.reported` 并追加下一步状态事件。
-- 调度器降级为 **watchdog**：只做收尸（租约过期）、审计、判死、收件箱过期，从不派活
-  （`dispatchMode: 'pull'`）。
-- 代价：需要一个活着的 Lead 会话；好处：零 experimental 依赖、不会崩宿主。
-
-## 9. P3 部署与运行注记（2026-11-26）
-
-- **部署 = 一条命令**：`install.sh` → 找 App/CLI → 补 Agent Teams bundle → 装自己 →
-  `--dump-config` 验证组合 → 写 `config.json`/`deploy.json`。幂等，可重复跑。
-- **版本必须对齐**：Team bundle 的依赖是**精确版本**（`0.2.2-rc.1`），dsh 运行时不匹配时
-  CLI 要求 `allow-version --accept-risk`。installer 会按 dsh 的主次版本挑最接近的已发布版本，
-  仍不匹配就报 `E_RISK_REQUIRED` 并把命令原文交给人，**不擅自接受风险**。
-- **服务必须延迟解析**：apply 时其他 bundle 的 fiber 还没 ACTIVE，`ctx.get('agents')` 会返回
-  undefined。正确姿势是 `ctx.inject(['agents','agentTeams'], scope => ...)` 等它们就绪再起调度器。
-- **不能直接读 `ctx.agentTeams`**：未在 inject 里声明会抛 `cannot get property ... without inject`，
-  而声明了又会让插件在缺 Team 的宿主上完全不加载。所以统一走 `ctx.get()`（只读、不要求 inject）。
-- **家要显式绑定**：`discoverLead` 优先取 cwd 落在 `homeWorkspace` 里的 root，否则取最新的一个。
-- **谷时与预算在派活前过滤**：被推迟的任务不算 stalled（否则会被误判死锁）。
-- **CLI 会归一化 bundles**：每次 `dsh plugin …` 或 `--dump-config` 都会重写
-  `dsh.profile.bundles`，可能把未完全落地的 bundle 条目丢掉。所以 installer **不再用
-  `--dump-config` 验证**（它本身就是写操作），改为读文件校验 + 必要时补写条目。
-- **真机验证**：在从 web 模板克隆出的独立 profile（`crewtest`）上装齐 Team bundle + 本插件，
-  用真实宿主启动，日志出现 `[crew] scheduler started`。
-
-## 10. 明确不做（v1）
-
-多机共享任务板、git worktree 隔离、外部事件源、定时例行、嵌套团队、实时审批弹窗。
-
-## 8. 已知风险
-
-1. `agent-team` 是 experimental 包，升级即坏 → 所有调用收在 `lib/team.js` 薄适配层。
-2. 冷恢复机制可用但语义需持续观察 → 每次 tick 对账兜底。
-3. 没有定时任务源时，无人投喂它就空闲 → 不是故障，但价值打折；P3 评估补例行任务。
+嵌套团队、多机共享账本、worktree 隔离、外部事件源（webhook/邮件）、实时审批弹窗、
+侧边栏 UI 面板。这些不是能力不足，是当前阶段做了也验证不了。

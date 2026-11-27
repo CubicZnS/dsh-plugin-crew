@@ -4,6 +4,29 @@
 **主版本**改协议或数据格式，**次版本**加功能，**修订号**只修 bug。
 每次发版必须同时更新：`package.json` 的 version、本文件、`docs/DESIGN.md` 的对应注记，并打 git tag。
 
+## [0.5.0] — 2026-11-27
+
+### 变更（不兼容）
+- **删掉「班组绑工作区」的概念。** `config.homeWorkspace` 移除；班组在哪个目录干活，
+  由你开 Lead 会话的位置决定。安装器不再创建 `~/crew-work`，`--workspace` 参数一并移除。
+
+### 移除
+- `lib/team.js`（Agent Teams 适配层）、`lib/executor.js`（宿主侧执行器）、
+  `bin/crew-daemon.mjs`、`scripts/kill-test.sh`、`spike/`、`docs/SPIKE.md`。
+- `crew_status` 输出里的 `services` 与 `homeWorkspace` 字段。
+- 调度器的派活路径（`dispatch` 动作、`maxConcurrent`、单写者排队）——这些规则搬进 `crew_pull`。
+
+### 新增
+- `crew_pull` 现在负责谷时延后：窗口外的可延迟任务不派，返回 `deferred` 列表。
+- `plan.js` 收敛为纯 watchdog 规划：收尸 / 审计 / 判死。
+
+### 修复
+- 评审中的任务不再被误判为死锁。
+- watchdog 的并发调用合并为一次（收尸只做一次）。
+
+### 文档
+- DESIGN、README、DEPLOY 全量重写，去掉所有 Agent Teams 与工作区绑定的描述。
+
 ## [0.4.0] — 2026-11-27
 
 ### 变更（不兼容）

@@ -26,12 +26,11 @@ const options = {
   json: flag('json'),
   dryRun: flag('dry-run'),
   restart: flag('restart'),
-  workspace: resolve(value('workspace', join(homedir(), 'crew-work'))),
   profile: value('profile', undefined),
   home: process.env.CREW_HOME || join(homedir(), '.dsh', 'crew'),
 }
 
-const result = { ok: false, code: 'E_UNKNOWN', message: '', app: null, cli: null, version: PKG.version, profiles: [], workspace: options.workspace, config: null, deploy: null }
+const result = { ok: false, code: 'E_UNKNOWN', message: '', app: null, cli: null, version: PKG.version, profiles: [], config: null, deploy: null }
 const out = (message) => { if (!options.json) console.log('[crew-install] ' + message) }
 const EXIT = { E_NO_DSH: 2, E_NO_PROFILES: 3, E_INSTALL_FAILED: 4, E_VERIFY_FAILED: 5 }
 const fail = (code, message) => {
@@ -134,8 +133,7 @@ for (const name of targets) {
 
 const configFile = join(options.home, 'config.json')
 const existing = existsSync(configFile) ? JSON.parse(readFileSync(configFile, 'utf8')) : {}
-const config = { enabled: true, homeWorkspace: options.workspace, ...existing }
-if (options.workspace) config.homeWorkspace = existing.homeWorkspace ?? options.workspace
+const config = { enabled: true, ...existing }
 
 const deploy = {
   version: PKG.version,
@@ -143,7 +141,6 @@ const deploy = {
   repo: REPO,
   app,
   profiles: result.profiles.filter((entry) => entry.installed).map((entry) => entry.name),
-  workspace: config.homeWorkspace,
   checks: Object.fromEntries(result.profiles.map((entry) => [entry.name, { installed: entry.installed, bundleRegistered: entry.bundleRegistered }])),
 }
 
@@ -151,7 +148,6 @@ if (!options.dryRun) {
   mkdirSync(options.home, { recursive: true })
   writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n', 'utf8')
   writeFileSync(join(options.home, 'deploy.json'), JSON.stringify(deploy, null, 2) + '\n', 'utf8')
-  mkdirSync(config.homeWorkspace, { recursive: true })
 }
 result.config = config
 result.deploy = deploy
@@ -170,6 +166,5 @@ result.message = options.dryRun ? 'dry-run：只做探测，没有改动' : '已
 if (options.json) console.log(JSON.stringify(result, null, 2))
 else {
   out(result.message)
-  out('工作区：' + config.homeWorkspace)
   if (!options.restart) out('重启后进 DSH 说「crew_status」验证（或加 --restart 让它自己重启）')
 }

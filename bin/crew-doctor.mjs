@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Static preflight. Run before or after install; inside DSH also call crew_status,
- * which is the only place runtime state (live Team, home session) can be checked.
+ * which is the only place runtime state (ledger, pending jobs) can be checked.
  */
 import { existsSync, readFileSync, readdirSync, accessSync, constants, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -9,7 +9,6 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = dirname(fileURLToPath(import.meta.url))
-const TEAM_BUNDLE = '@deepseek-ai/dsh-experimental-agent-team-profile'
 const PKG = JSON.parse(readFileSync(join(REPO, '..', 'package.json'), 'utf8'))
 const HOME = process.env.CREW_HOME || join(homedir(), '.dsh', 'crew')
 const json = process.argv.includes('--json')
@@ -37,7 +36,6 @@ for (const profile of profiles) {
   let pkg
   try { pkg = JSON.parse(readFileSync(join(profilesDir, profile, 'package.json'), 'utf8')) } catch { pkg = undefined }
   const bundles = (pkg?.dsh?.profile?.bundles) ?? []
-  add(profile + ': Agent Teams bundle', bundles.includes(TEAM_BUNDLE), bundles.includes(TEAM_BUNDLE) ? '已挂' : '未挂', '跑 ./install.sh')
   add(profile + ': ' + PKG.name, bundles.includes(PKG.name), bundles.includes(PKG.name) ? '已挂' : '未挂', '跑 ./install.sh')
 }
 

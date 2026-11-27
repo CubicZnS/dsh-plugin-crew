@@ -2,7 +2,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { kindOf, requiresReview, rubricFor, listKinds } from '../lib/kinds.js'
 import { workJobPrompt, reviewJobPrompt } from '../lib/handoff.js'
-import { teamAvailable, discoverLead, describeServices } from '../lib/team.js'
 
 const task = (overrides = {}) => ({ id: 'task-1', subject: '写个东西', type: 'code', writeScopes: ['src/'], ...overrides })
 
@@ -28,28 +27,4 @@ test('review job prompt is blind: rubric only, no worker transcript', () => {
   assert.match(text, /run-7-r/u)
   assert.match(text, /看不到执行者的对话/u)
   assert.match(text, /src\/a\.js/u)
-})
-
-test('a malformed team service degrades instead of throwing', () => {
-  const partial = {
-    get: (name) => (name === 'agents'
-      ? { list: () => [], get: () => undefined }
-      : name === 'agentTeams' ? { sendMessage() {} } : undefined),
-  }
-  assert.equal(teamAvailable(partial), false)
-  assert.equal(discoverLead(partial), undefined)
-})
-
-test('a throwing registry never escapes discovery', () => {
-  const hostile = {
-    get: (name) => (name === 'agents'
-      ? { list: () => { throw new Error('boom') }, get: () => undefined }
-      : { tryMembership: () => ({ role: 'lead' }), sendMessage() {} }),
-  }
-  assert.equal(discoverLead(hostile), undefined)
-})
-
-test('service diagnostics never throw', () => {
-  const broken = { get: () => { throw new Error('nope') } }
-  assert.deepEqual(describeServices(broken), { agents: 'missing', agentTeams: 'missing', permissionPresets: 'missing' })
 })
