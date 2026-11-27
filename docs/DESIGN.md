@@ -105,6 +105,19 @@ worker→ crew_report            写 run.reported，同时推进状态
 3. **`dsh` CLI 会重写 `dsh.profile.bundles`。** 校验要看文件，不要用 `--dump-config`（它本身是写操作）。
 4. **认错 profile 要付三次重启。** 装之前先确认宿主进程用的是 web 还是 desktop。
 
+## 8.7 面板（v0.6.0）
+
+两种形态共用一份数据折叠（`lib/panel.js` 的 `buildPanelData`）：
+
+```
+账本 → buildPanelData → {tasks[].runs[].prompt/summary, inbox, stats}
+        ├── 侧边栏面板：host 注册 /api/crewPanel → 客户端 5s 轮询
+        └── 离线 HTML：bin/crew-report.mjs 渲染成单文件
+```
+
+侧边栏是**客户端插件**：手写 UMD（`window.__ModuleLoader__.load`），不构建、不打包，
+注册到 `conversation.view` 槽位。刻意包了 error boundary——面板崩了不能连累对话。
+
 ## 9. 不做
 
 嵌套团队、多机共享账本、worktree 隔离、外部事件源（webhook/邮件）、实时审批弹窗、

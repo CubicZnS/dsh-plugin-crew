@@ -52,6 +52,24 @@ worker→ crew_report            回报，同时推进状态
 | `crew_inbox` | 人 | 列出待拍板项，或给结论 |
 | `crew_plan` | 人/Lead | 空跑一次巡检，看 watchdog 会做什么 |
 
+## 面板
+
+装好后，对话区顶部多一个 **「班组」** 标签（和 Chat / Trajectory 并排）：
+
+- 任务列表：状态、尝试/失败次数
+- 点开任一任务，看到 **Lead ↔ worker 的完整对话**：发出去的 handoff 提示词原文 + 回报的 summary 与产物
+- 顶部四个数：任务 / 完成 / 阻塞 / 待评审，另有「待拍板」提示
+- 每 5 秒自动刷新，也可以手动刷新
+
+数据走宿主的 rpc 桥（`/api` + `crewPanel`），组件出错只会让这个标签显示错误，不影响对话本身。
+
+**离线版**（不依赖宿主，可发人/手机看）：
+
+```bash
+node bin/crew-report.mjs --open          # 渲染并打开 HTML
+node bin/crew-report.mjs --serve 7788    # 起本地页面，手机同 Wi-Fi 可访问
+```
+
 ## 前置条件
 
 1. **不需要任何 experimental 包**，也不需要版本豁免。

@@ -4,6 +4,19 @@
 **主版本**改协议或数据格式，**次版本**加功能，**修订号**只修 bug。
 每次发版必须同时更新：`package.json` 的 version、本文件、`docs/DESIGN.md` 的对应注记，并打 git tag。
 
+## [0.6.0] — 2026-11-27
+
+### 新增
+- **侧边栏「班组」面板**（客户端插件）：对话区新增一个 tab，展示任务列表与每个任务的
+  **Lead ↔ worker 对话**（handoff 提示词原文 + 回报 summary 与产物），5 秒轮询刷新。
+  数据走宿主 rpc 桥（`/api` + `crewPanel`）；组件包了 error boundary，出错只影响这个 tab。
+- `lib/panel.js` 拆出 `buildPanelData()`，侧边栏面板与离线 HTML 共用同一份数据折叠逻辑。
+- `crew_pull` 把 handoff 提示词写进 `run.started`——否则面板无法显示「Lead 说了什么」。
+
+### 说明
+- 客户端插件是手写的无构建模块（`window.__ModuleLoader__.load`），与 dsh-plugin-paper-fetch 同一套接法。
+- 离线 HTML 面板保留：手机访问、发给别人、宿主挂掉时都能用；确认侧边栏版够用后再清理。
+
 ## [0.5.1] — 2026-11-27
 
 ### 修复
