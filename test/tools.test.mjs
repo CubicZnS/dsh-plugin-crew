@@ -20,7 +20,7 @@ async function fixture() {
 
 test('the plugin registers the whole tool surface', async () => {
   const { tools } = await fixture()
-  assert.deepEqual([...tools.keys()].sort(), ['crew_inbox', 'crew_plan', 'crew_pull', 'crew_report', 'crew_status', 'crew_task_add', 'crew_task_cancel', 'crew_tasks'])
+  assert.deepEqual([...tools.keys()].sort(), ['crew_chat', 'crew_inbox', 'crew_plan', 'crew_pull', 'crew_report', 'crew_say', 'crew_status', 'crew_task_add', 'crew_task_cancel', 'crew_tasks'])
 })
 
 test('crew_report settles a real run and rejects malformed input', async () => {
