@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-crew",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "DSH 无人值守班组插件：把原生 Agent Teams 变成可跨天运行、可审计、有人工收件箱的常驻班组。",
   "type": "module",
