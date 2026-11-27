@@ -9,7 +9,7 @@ import { apply } from '../lib/index.js'
 function load(config) {
   const tools = new Map()
   const ctx = { tools: { register(tool) { tools.set(tool.name, tool) } } }
-  apply(ctx, config)
+  apply(ctx, { enabled: true, ...config })
   return tools
 }
 
@@ -21,6 +21,17 @@ async function fixture() {
 test('the plugin registers the whole tool surface', async () => {
   const { tools } = await fixture()
   assert.deepEqual([...tools.keys()].sort(), ['crew_chat', 'crew_inbox', 'crew_plan', 'crew_pull', 'crew_report', 'crew_say', 'crew_status', 'crew_task_add', 'crew_task_cancel', 'crew_tasks'])
+})
+
+test('every tool refuses politely while the crew is switched off', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'crew-off-'))
+  const tools = new Map()
+  apply({ tools: { register(tool) { tools.set(tool.name, tool) } } }, { enabled: false, dataDir: dir })
+  for (const name of ['crew_status', 'crew_tasks', 'crew_pull', 'crew_plan', 'crew_inbox']) {
+    const result = await tools.get(name).execute({})
+    assert.equal(result.ok, false, name + ' must refuse when disabled')
+    assert.match(result.error, /未启用/u)
+  }
 })
 
 test('crew_report settles a real run and rejects malformed input', async () => {

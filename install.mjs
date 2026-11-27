@@ -133,7 +133,7 @@ for (const name of targets) {
 
 const configFile = join(options.home, 'config.json')
 const existing = existsSync(configFile) ? JSON.parse(readFileSync(configFile, 'utf8')) : {}
-const config = { enabled: true, ...existing }
+const config = { enabled: false, ...existing }
 
 const deploy = {
   version: PKG.version,
@@ -162,7 +162,7 @@ if (options.restart && !options.dryRun) {
 
 result.ok = true
 result.code = options.dryRun ? 'OK_DRY_RUN' : 'OK'
-result.message = options.dryRun ? 'dry-run：只做探测，没有改动' : '已安装，重启 DSH 后生效'
+result.message = options.dryRun ? 'dry-run：只做探测，没有改动' : '已安装（默认关闭），重启 DSH 后在「班组」面板里打开'
 if (options.json) console.log(JSON.stringify(result, null, 2))
 else {
   out(result.message)
