@@ -49,7 +49,10 @@ worker→ crew_report            写 run.reported，同时推进状态
 ```
 
 `crew_pull` 负责的全部规则：依赖未完成不派、写域冲突不派、`failures >= maxAttempts` 不派、
-谷时之外的可延迟任务不派（`priority >= 100` 或临近 deadline 例外）、一次最多 5 个。
+一次最多 5 个。
+
+**时间窗口不拦 pull。** 0.5.1 起 `crew_pull` 不再因为「不在谷时」而拒发作业——交互式场景里，
+人加了活就是要现在干。「夜里跑」应该靠一个定时触发去调 `crew_pull`，而不是在 pull 内部拦截。
 
 `crew_report` 是**唯一**状态推进入口：它同时写 `run.reported` 并追加下一步事件
 （`task.completed` / `task.review.requested` / `task.released` / `task.blocked`）。
@@ -77,7 +80,7 @@ worker→ crew_report            写 run.reported，同时推进状态
 | `deadlockTicks` | 3 | 连续几轮判死 |
 | `auditAfterMs` | 900000 | 多久算「没进展」 |
 | `inboxTtlMs` / `inboxTimeout` | 4h / `reject` | 收件箱超时策略 |
-| `offPeak` | `00:30–08:30` Asia/Shanghai | 谷时窗口（可关闭） |
+| `offPeak` | `00:30–08:30` Asia/Shanghai | 仅用于 `crew_status` 显示「当前是否谷时」，不拦任何动作 |
 | `dailyBudget` / `costPerMToken` | 未设 | 只用于展示今日花费 |
 
 **没有 `homeWorkspace`。** 班组在哪个工作区干活，由你开 Lead 会话的位置决定；

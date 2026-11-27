@@ -4,6 +4,18 @@
 **主版本**改协议或数据格式，**次版本**加功能，**修订号**只修 bug。
 每次发版必须同时更新：`package.json` 的 version、本文件、`docs/DESIGN.md` 的对应注记，并打 git tag。
 
+## [0.5.1] — 2026-11-27
+
+### 修复
+- **`crew_pull` 不再因为「不在谷时」拒发作业。** 现场反馈：早上 8:58 加的任务被 00:30–08:30 的窗口
+  挡住，要等到半夜才动。交互式使用里这是错的——时间窗口只保留为 `crew_status` 的展示信息，
+  「夜里跑」交给定时触发去调 `crew_pull`。
+- 首次真机闭环验证：`task.created → claimed → run.started → run.reported → task.completed`，
+  worker 子会话成功调用 `crew_report` 并把任务推进到 `done`。
+
+### 新增
+- `crew_task_cancel`：写墓碑取消任务；已完成的任务不能取消；已认领的连带释放租约。
+
 ## [0.5.0] — 2026-11-27
 
 ### 变更（不兼容）

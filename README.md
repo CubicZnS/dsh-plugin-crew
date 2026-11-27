@@ -46,6 +46,7 @@ worker→ crew_report            回报，同时推进状态
 | `crew_task_add` | 人 | 往任务板加活 |
 | `crew_pull` | **Lead** | 领活：返回带完整提示词、可直接丢给 `subagent` 的作业 |
 | `crew_report` | **worker / reviewer** | 唯一的完成信号，同时推进任务状态 |
+| `crew_task_cancel` | 人 | 取消任务（写墓碑，不删记录） |
 | `crew_tasks` | 人/Lead | 任务板明细（含尝试/失败次数） |
 | `crew_status` | 人/Lead | 总览：还有什么活、收件箱、今日花费 |
 | `crew_inbox` | 人 | 列出待拍板项，或给结论 |
@@ -73,7 +74,7 @@ node bin/crew-doctor.mjs                   # 静态体检
 | `lib/ledger.js` / `lib/fold.js` | append-only JSONL 与状态折叠 |
 | `lib/plan.js` / `lib/scheduler.js` | watchdog 规划与循环 |
 | `lib/handoff.js` / `lib/kinds.js` | 作业提示词与任务类型 |
-| `lib/window.js` | 谷时与花费统计 |
+| `lib/window.js` | 谷时判断与花费统计（只用于展示） |
 | `bin/crew-doctor.mjs` / `bin/crew-report.mjs` | 体检与离线报告 |
 | `schema/` | 四个对象的 JSON Schema |
 

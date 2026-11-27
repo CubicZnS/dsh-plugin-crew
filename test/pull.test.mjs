@@ -101,3 +101,20 @@ test('dependencies and write scopes gate the pull', async () => {
   const first = await pull(tools, { limit: 5 })
   assert.equal(first.jobs.length, 1, 'same scope + unmet dependency')
 })
+test('a task can be canceled, and a canceled task is never handed out', async () => {
+  const { tools, ledger } = await fixture()
+  const created = await add(tools, { subject: '别做了', type: 'monitor' })
+  const canceled = await tools.get('crew_task_cancel').execute({ task_id: created.taskId, reason: '需求变了' })
+  assert.equal(canceled.ok, true)
+  assert.equal(await statusOf(ledger, created.taskId), 'canceled')
+  assert.equal((await pull(tools)).jobs.length, 0)
+})
+
+test('a finished task cannot be canceled', async () => {
+  const { tools } = await fixture()
+  await add(tools, { subject: 'x', type: 'monitor' })
+  const job = (await pull(tools)).jobs[0]
+  await report(tools, { run_id: job.runId, status: 'succeeded' })
+  const result = await tools.get('crew_task_cancel').execute({ task_id: 'task-1' })
+  assert.equal(result.ok, false)
+})
