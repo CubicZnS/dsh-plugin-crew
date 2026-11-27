@@ -25,7 +25,7 @@ cd <repo> && ./install.sh --json
 | `E_NO_PROFILES` | 没有 profile | 让用户先启动一次 DSH，再重跑 |
 | `E_INSTALL_FAILED` | 依赖装不上 | 把 `message` 原文交给用户；**不要手改 profile 文件** |
 | `E_VERIFY_FAILED` | 组合失败 | 同上；提示可以用 `.bak-crew-*` 备份回滚 |
-| `E_RISK_REQUIRED` | Agent Teams 与当前 dsh 内部版本不完全匹配 | **必须问用户**：把 `commands` 里那几条命令原文给他，说明"可能会崩，但小版本差异通常可用"。用户同意后加 `--accept-risk` 重跑 |
+| `E_RISK_REQUIRED` | 已废弃：0.4.0 起不再安装实验性 Agent Teams bundle，正常不会出现 | 如果出现，说明用的是旧版本，升级 |
 
 ## 重启（先判断你在哪）
 

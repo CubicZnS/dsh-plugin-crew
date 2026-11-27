@@ -1,43 +1,70 @@
 # CHANGELOG
 
-## 0.3.0 — P3 可部署（2026-11-26）
+本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)：
+**主版本**改协议或数据格式，**次版本**加功能，**修订号**只修 bug。
+每次发版必须同时更新：`package.json` 的 version、本文件、`docs/DESIGN.md` 的对应注记，并打 git tag。
 
-- `install.mjs` / `install.sh`：幂等部署，探测 App/CLI/profile，补 Agent Teams bundle，装插件，
-  `--dump-config` 验证，写 config/deploy 记录；支持 `--json` `--dry-run` `--restart` `--accept-risk`
-- 版本对齐：按 dsh 主次版本挑选已发布的 Team bundle；不匹配时报 `E_RISK_REQUIRED` 并交出命令原文
-- `bin/crew-doctor.mjs`：11 项静态检查 + 修复建议
-- `AGENTS.md`：给 coding agent 的部署手册（含失败码分支、要不要重启的判断）
-- 谷时调度：可延迟任务排在便宜时段，急活/临近 deadline 不受限
-- 预算闸：按当日 token × 单价计算，超限停派活并开收件箱
-- 服务解析改为 `ctx.get()` + `ctx.inject()` 延迟启动，修复真机启动时 `without inject` 崩溃
-- 单测 33 条全绿；在独立 profile 上用真实宿主验证 scheduler 启动
+## [0.4.0] — 2026-11-27
 
-## 0.2.0 — P2 班组（2026-11-26）
+### 变更（不兼容）
+- **派活模型从 push 改为 pull。** 插件不再尝试创建 agent，也不再依赖 Agent Teams 服务；
+  `crew_pull` 把带完整提示词的作业交给 Lead 会话，由 Lead 用宿主自带的 `subagent` 派出去。
+  原因：本机 dsh 0.2.2-rc.5 上 `ctx.agentTeams` 是空壳（`TeamService{}` 无任何方法），且
+  `ctx.agents` 只读，插件无法自行创建会话。
+- `crew_report` 现在负责推进状态机：成功 → 评审或完成；失败 → 重试或进收件箱。
 
-- `lib/team.js`：Agent Teams 薄适配层（发现 Lead、spawn/复用 teammate、投递、按 kind 设权限档），特征检测可降级
-- `lib/team-executor.js`：真实 Executor —— 派 handoff → 等 `crew_report` → 盲审 → 判定；超时/取消可收口
-- `lib/kinds.js`：任务类型注册表（权限档、默认写域、rubric、交付形态、是否评审）
-- 工具：`crew_report`（worker 唯一完成信号）、`crew_inbox`（人工拍板）
-- 收件箱超时：tick 扫描过期项，按 timeoutAction（默认 reject）落 blocked(approval-timeout)
-- 插件在 `enabled: true` 且检测到 live Team 时自启调度循环，随 ctx 卸载停止
-- 单测 27 条全绿
+### 新增
+- `crew_pull`：一次领 N 个作业（先评审、后执行），自动校验依赖、写域冲突、并发上限。
+- `lib/handoff.js`：作业提示词生成（executor 与 pull 共用同一套措辞）。
+- 任务状态新增 `review`（待盲审）；`review.verdict` 通过则完成、驳回则回退并计一次失败。
+- 单测 35 条，覆盖「领活不重复」「盲审通过/驳回」「失败耗尽进收件箱」「依赖与写域」四条主链。
 
-## 0.1.0 — P1 心脏（2026-11-26）
+### 移除
+- `lib/team-executor.js` 与对应测试：不再有宿主侧 Executor。
+- 安装器不再安装 `@deepseek-ai/dsh-experimental-agent-team-profile`，不再需要版本豁免
+  （`E_RISK_REQUIRED` 随之废弃）。
 
-- `lib/scheduler.js`：单飞 tick、启动对账、收尸、派活、审计、判死、空闲退避
-- `lib/executor.js`：Executor seam + StubExecutor + ControlledExecutor（P2 换真 worker 不动调度器）
-- `lib/audit.js`：账本不变量（同一任务不得并发两个 run）
-- 重试预算改为按真实失败计：崩溃中断不消耗重试次数
-- 工具：新增 `crew_tasks`
-- CLI：`bin/crew-daemon.mjs`（可打断的 tick runner）、`bin/crew-report.mjs`（自包含 HTML 面板 v0）
-- 验收：`scripts/kill-test.sh` —— kill -9 后重启，3/3 任务完成、租约清零、不变量 OK
-- 单测 13 条全绿
+### 修复
+- 调度器：pull 模式下不再派活，只做收尸/审计/判死（watchdog）。
+- 调度器：`executor` 缺省时不再空指针。
+- `fold`：`run.reported` 现在计入失败次数（pull 模式没有 `run.finished`）。
 
-## 0.0.1 — P0 地基（2026-11-26）
+## [0.3.1] — 2026-11-26
 
-- 仓库骨架、`cordis.patch.yml`、`dsh` 包声明
-- 纯逻辑核心：`lib/ledger.js`（JSONL 账本）、`lib/fold.js`（状态折叠）、`lib/plan.js`（tick 规划）
-- 只读工具：`crew_status`、`crew_plan`
-- 数据模型：`schema/{task,run,lease,inbox}.schema.json`
-- 设计文档 `docs/DESIGN.md`、验证记录 `docs/SPIKE.md`
-- 单测 7 条全绿；S1/S2 spike 在 deepseek-harness 运行时中通过
+### 修复
+- **宿主崩溃**：`discoverLead` 对 `agentTeams` 做了形状假设，遇到空壳服务抛
+  `TypeError: teams.tryMembership is not a function`，未捕获导致宿主以 1 退出。
+  现在服务形状不匹配即视为不可用，tick 全程 try/catch，故障只记日志。
+- `cordis.patch.yml` 退回「只挂载自己」：不再由本插件提供 Agent Teams 服务。
+
+## [0.3.0] — 2026-11-26
+
+### 新增
+- 一条命令部署：`install.sh` / `install.mjs`（幂等、`--json`、`--dry-run`、`--restart`、`--workspace`）。
+- `bin/crew-doctor.mjs`：静态体检 + 修复建议。
+- `AGENTS.md`：给 coding agent 的部署手册。
+- 谷时调度（可延迟任务排到便宜时段）与每日预算闸。
+
+### 修复
+- 部署校验不再用 `--dump-config`（它本身会重写 `dsh.profile.bundles`）。
+
+## [0.2.0] — 2026-11-26
+
+### 新增
+- Agent Teams 适配层、控制通道 `crew_report`、盲审循环、人工收件箱与超时默认拒绝。
+- 任务类型注册表（code / research / content / monitor → 权限档、写域、rubric）。
+
+### 已知问题
+- 依赖 experimental Agent Teams 服务；该服务与本机 dsh 版本不匹配。
+
+## [0.1.0] — 2026-11-26
+
+### 新增
+- 账本（append-only JSONL）、巡检 tick、租约与收尸、崩溃自愈与不变量自检。
+- `bin/crew-daemon.mjs`、`bin/crew-report.mjs`、`scripts/kill-test.sh`。
+
+## [0.0.1] — 2026-11-26
+
+### 新增
+- 仓库骨架、决策记录（DESIGN）、四个对象 schema（task / run / lease / inbox）。
+- 三个技术验证：插件可绕过模型驱动任务板、冷恢复可用、权限档可在建会话时落地。

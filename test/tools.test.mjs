@@ -20,24 +20,32 @@ async function fixture() {
 
 test('the plugin registers the whole tool surface', async () => {
   const { tools } = await fixture()
-  assert.deepEqual([...tools.keys()].sort(), ['crew_inbox', 'crew_plan', 'crew_report', 'crew_status', 'crew_task_add', 'crew_tasks'])
+  assert.deepEqual([...tools.keys()].sort(), ['crew_inbox', 'crew_plan', 'crew_pull', 'crew_report', 'crew_status', 'crew_task_add', 'crew_tasks'])
 })
 
-test('crew_report is the completion channel and validates its input', async () => {
+test('crew_report settles a real run and rejects malformed input', async () => {
   const { tools, ledger } = await fixture()
   const report = tools.get('crew_report')
 
-  const good = await report.execute({ run_id: 'run-3', status: 'succeeded', summary: 'done', artifacts: ['src/a.js'] })
+  await ledger.append({ type: 'task.created', taskId: 'task-1', subject: 'x', taskType: 'monitor' })
+  await ledger.append({ type: 'task.claimed', taskId: 'task-1', owner: 'lead', leaseId: 'lease-1', expiresAt: Date.now() + 60000 })
+  await ledger.append({ type: 'run.started', runId: 'run-1', taskId: 'task-1', kind: 'work' })
+
+  const good = await report.execute({ run_id: 'run-1', status: 'succeeded', summary: 'done', artifacts: ['src/a.js'] })
   assert.equal(good.ok, true)
+  assert.equal(good.next, 'done', 'monitor tasks skip review')
 
   assert.equal((await report.execute({ run_id: '../../etc/passwd', status: 'succeeded' })).ok, false)
-  assert.equal((await report.execute({ run_id: 'run-3', status: 'whatever' })).ok, false)
+  assert.equal((await report.execute({ run_id: 'run-1', status: 'whatever' })).ok, false)
+  assert.equal((await report.execute({ run_id: 'run-99', status: 'succeeded' })).ok, false, 'unknown run')
 
-  const records = await ledger.records()
-  const reports = records.filter((record) => record.type === 'run.reported')
-  assert.equal(reports.length, 1)
-  assert.equal(reports[0].runId, 'run-3')
-  assert.deepEqual(reports[0].artifacts, ['src/a.js'])
+  const state = (await ledger.records()).reduce((acc, record) => {
+    if (record.type === 'run.reported') acc.reported = record.runId
+    if (record.type === 'task.completed') acc.completed = record.taskId
+    return acc
+  }, {})
+  assert.equal(state.reported, 'run-1')
+  assert.equal(state.completed, 'task-1')
 })
 
 test('crew_inbox lists open items and resolves them into transitions', async () => {

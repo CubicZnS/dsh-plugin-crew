@@ -157,6 +157,28 @@ append-only JSONL，每行一条记录：
 | 四类任务真机跑通 | 同上：得在宿主里 spawn 真 teammate | P3 安装后第一件事 |
 | 跨会话 memory | 先靠 session 连续性，不做额外记忆层 | 观察后再定 |
 
+## 8.5 P4 架构转向：pull 模型（2026-11-27）
+
+现场结论：在本机 dsh `0.2.2-rc.5` 上，`ctx.get('agentTeams')` 返回的是
+`TeamService{}`——一个没有任何方法（`tryMembership`/`sendMessage`）的空壳；
+`ctx.agents` 只提供 `list`/`get`，插件无法自行创建会话。因此 push 模型（插件派活）
+在这条链路上走不通。
+
+改法：**插件只做账本与规则，派活交给 Lead 会话**。
+
+```
+用户 → crew_task_add → 账本
+Lead 会话 → crew_pull → 拿到 {taskId, runId, prompt}
+Lead → subagent(prompt) → worker 干活 → crew_report → 账本
+账本推进状态：done / review（盲审）/ todo（重试）/ blocked（进收件箱）
+```
+
+- `crew_pull` 是唯一领活入口：先发评审作业，再发执行作业；校验依赖、写域冲突、`maxAttempts`。
+- `crew_report` 是唯一推进入口：它同时写 `run.reported` 并追加下一步状态事件。
+- 调度器降级为 **watchdog**：只做收尸（租约过期）、审计、判死、收件箱过期，从不派活
+  （`dispatchMode: 'pull'`）。
+- 代价：需要一个活着的 Lead 会话；好处：零 experimental 依赖、不会崩宿主。
+
 ## 9. P3 部署与运行注记（2026-11-26）
 
 - **部署 = 一条命令**：`install.sh` → 找 App/CLI → 补 Agent Teams bundle → 装自己 →

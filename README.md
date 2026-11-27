@@ -3,7 +3,8 @@
 在 DSH 里跑**无人值守班组**：一个常驻 Lead + 临时 worker + 盲审 reviewer，
 任务板驱动，崩溃能自愈，需要人时进收件箱。
 
-> 状态：**P3（可部署）**。一条命令装好，33 条单测 + 真机宿主启动验证通过。
+> 状态：**v0.4.0（pull 模型）**。插件只记账与定规矩，派活交给 Lead 会话用宿主自带的
+> `subagent`。零 experimental 依赖，35 条单测全绿。
 
 ## 三步装好
 
@@ -33,24 +34,32 @@ DSH 原生 Agent Teams 已经提供了 roster / 持久信箱 / 任务板 / 冷�
 
 | 工具 | 谁用 | 作用 |
 | --- | --- | --- |
-| `crew_status` | 人/Lead | 各状态任务数、租约、收件箱、下一 tick 动作 |
+| `crew_task_add` | 人 | 往任务板加活 |
+| `crew_pull` | **Lead** | 领活：返回带完整提示词、可直接丢给 `subagent` 的作业 |
+| `crew_report` | **worker / reviewer** | 唯一的完成信号，同时推进任务状态 |
 | `crew_tasks` | 人/Lead | 任务板明细（含尝试/失败次数） |
-| `crew_plan` | 人/Lead | 空跑一次巡检，看会触发什么 |
-| `crew_report` | **worker / reviewer** | 唯一的完成信号，写进账本 |
+| `crew_status` | 人/Lead | 总览：还有什么活、收件箱、今日花费 |
 | `crew_inbox` | 人 | 列出待拍板项，或给结论 |
+| `crew_plan` | 人/Lead | 空跑一次巡检，看 watchdog 会做什么 |
 
-## 前置条件（否则只会降级，不会崩）
+## 它怎么跑起来
 
-1. **宿主必须挂上 Agent Teams 服务**。它不在默认 web profile 里，需要额外加：
-   ```bash
-   dsh plugin --profile web add @deepseek-ai/dsh-experimental-agent-team-profile
-   ```
-   没挂的时候 `ctx.agentTeams` 不存在，插件仍会加载并注册工具，但调度器不启动（`lib/team.js` 特征检测后降级）。
+```
+你    → crew_task_add          把活写进账本
+Lead  → crew_pull              领到 {taskId, runId, prompt}
+Lead  → subagent(prompt)       派给子会话干活
+worker→ crew_report            回报，同时推进状态
+账本  → done / review（盲审）/ todo（重试）/ blocked（进收件箱）
+```
 
-2. **班组要绑定一个明确的家**。当前 `discoverLead` 取第一个 role=lead 的 root agent；
-   同时开多个会话时可能认错。P3 会加「按 workspace / session 指定」的配置。
+插件**不创建任何 agent**——在这台机器的 dsh 上 `ctx.agents` 是只读的。它只负责
+「谁该干什么、干到哪一步、什么时候该问人」。
 
-3. **不要把班组放在你正在干活的会话里**——teammate 会在同一个 workspace 上动手。建议专用工作区。
+## 前置条件
+
+1. **不需要 Agent Teams。** 0.4.0 起不再安装任何 experimental bundle，也就不需要版本豁免。
+2. **建议专用工作区**，默认 `~/crew-work`，在 `~/.dsh/crew/config.json` 的 `homeWorkspace` 改。
+3. **一次重启。** 宿主侧插件要重新载入才生效，没有热插拔。
 
 ## 安装（干活那台 Mac）
 
